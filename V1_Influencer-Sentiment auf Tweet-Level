@@ -1,0 +1,51 @@
+#Leeren Dataframe erstellen, in dem die Sentimente der einzelnen Influencer-Tweets gespeichert werden können
+atest_influencer <- data.frame(date=as.Date(character()),
+                               positive=numeric(), 
+                               negative=numeric(), 
+                               sentiment=numeric(),
+                               lexicon=character(),
+                               tweetID=character(),
+                               userID=character(),
+                               group=character(),
+                               stringsAsFactors=FALSE) 
+
+for(i in 1:10){      #1:10 ist nur für Testzwecke, später dann wenn es die Influencer-Liste gibt: for(i in 1:nrow(tesla_tweets)){
+  
+  test_influencer <- tesla_tweets[i,] 
+  
+  test_tweetdate <- tesla_tweets[i,]$date
+  test_tweetuserID <- tesla_tweets[i,]$userID
+  test_tweettweetID <- tesla_tweets[i,]$tweetID
+  
+  test_influencer <- test_influencer %>%
+    unnest_tokens(word, text) %>%
+    anti_join(stop_words) %>%
+    inner_join(get_sentiments("bing")) %>%
+    filter(sentiment %in% c("positive", "negative")) %>%
+    group_by(date,sentiment) %>%
+    count(sentiment) %>%
+    spread(sentiment, n, fill = 0)
+  
+  #Code gibt Fehler aus, wenn es weder ein positives, noch ein negatives Wort gibt. Daher muss überprüft werden, ob der Dataframe aus 0 Rows besteht, und wenn ja, müssen die fehlenden Spalten "date", "positive" und "negative" erstellt werden
+  #Die erstellten Spalten dann anschließend mit dem Datum und jeweils 0 fürs Sentiment befüllen
+  if(nrow(test_influencer) < 1) {
+    test_influencer <- add_column(test_influencer, positive = NA , negative = NA)
+    test_influencer[nrow(df) + 1,] = list(test_tweetdate, 0, 0)
+  } else {
+    test_influencer <- addcol(test_influencer, "positive") #Wenn es entweder nur positive/negative Wörter gibt, sind nur die Spalten definiert, die einen Wert enthalten. Deswegen muss man hier die leeren Spalten erstellen, damit man im nächsten Schritt die Berechnung "sentiment = positive - negative" durchführen kann
+    test_influencer <- addcol(test_influencer, "negative")
+  }
+  
+  test_influencer <- test_influencer %>% 
+    ungroup() %>%
+    mutate(sentiment = positive - negative) %>%
+    mutate(lexicon = "bing") %>%
+    mutate(group = "influencer")
+  
+  #test_influencer <- add_column(test_influencer, tweetID = test_tweettweetID, userID = test_tweetuserID)
+  
+  #Die einzeln iterierten Reihen werden nun einem bestehenden Dataframe hinzugefügt
+  atest_influencer <- add_row(atest_influencer, date = test_influencer$date, positive = test_influencer$positive, negative = test_influencer$negative, sentiment = test_influencer$sentiment, lexicon = test_influencer$lexicon, group = test_influencer$group, tweetID = test_tweettweetID, userID = test_tweetuserID)
+  
+}
+
