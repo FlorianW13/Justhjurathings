@@ -7,7 +7,7 @@ library(tidytext)
 con <- dbConnect(RMySQL::MySQL(), 
                  dbname = "", 
                  host = '', 
-                 port = 3306,
+                 port = ,
                  user = "",
                  password = "")
 
@@ -19,11 +19,15 @@ tweets_clean <- tweets %>% separate(created_at, c("date", "time"), sep = " ")
 text_df <- tweets_clean %>%
   unnest_tokens(word, text)
 
-# Sentiment-Feature mit nur einem pos/neg-Feature -------------------------
+text_df$searchKeywordID <- as.factor(text_df$searchKeywordID)
+text_df$date <- as.factor(text_df$date)
 
-sentiments_bing <- text_df %>%
-  inner_join(get_sentiments("bing")) %>%
+# Senti-Scores finito
+sentiment_scores_with_lag <- text_df %>%
+  filter(!is.na(searchKeywordID)) %>%
+  inner_join(get_sentiments("loughran")) %>%
   group_by(date, tweetID, searchKeywordID, sentiment) %>%
+  filter(sentiment %in% c("positive", "negative")) %>%
   count(sentiment) %>%
   spread(sentiment, n, fill = 0) %>%
   mutate(sentiment = positive - negative) %>%
@@ -32,5 +36,13 @@ sentiments_bing <- text_df %>%
   group_by(date, searchKeywordID) %>%
   count(type) %>%
   spread(type, n, fill = 0) %>%
-  mutate(ratio_pos = POS / (POS + NEG)) %>%
-  mutate(volume = POS + NEG)
+  mutate(senti_score = POS / (POS + NEG)) %>%
+  mutate(volume = POS + NEG) %>%
+  group_by(searchKeywordID) %>%
+  complete(date, nesting(searchKeywordID), fill = list(volume = 0, senti_score = 0.5)) %>%
+  select(-NEG, -POS) %>%
+  group_by(searchKeywordID) %>%
+  mutate(senti_score2 = lag(senti_score)) %>%
+  mutate(senti_score3 = lag(senti_score, n = 2L)) %>%
+  mutate(senti_score2 = ifelse(is.na(senti_score2), 0.5, senti_score2)) %>%
+  mutate(senti_score3 = ifelse(is.na(senti_score3), 0.5, senti_score3))
