@@ -1,0 +1,92 @@
+library(RMySQL)
+library(DBI)
+library(tidyverse)
+library(tidytext)
+
+# Funktion für leere Reihen
+addcol <- function(input, colname) {
+  newcol <-colname[!colname %in% names(input)]
+  
+  if(length(newcol)!=0) input[newcol] <- 0
+  input
+}
+
+# Connection zur Datenbank aufbauen
+con <- dbConnect(RMySQL::MySQL(), 
+                 dbname = "", 
+                 host = '', 
+                 port = ,
+                 user = "",
+                 password = "")
+
+# News von Datenbank laden
+bloomberg_neu <- dbReadTable(con, "Bloomberg_News")
+
+# News aufbereiten 
+bloomberg_clean <- bloomberg_neu %>% 
+  separate(Timestamp, c("date", "time"), sep = " ")
+
+# Sentiment für jede einzelne News bestimmen 
+## Leeren Dataframe erstellen für das Sentiment jeder News
+bloomberg_sentis <- data.frame(date=as.Date(character()),
+                               negative=numeric(),
+                               positive=numeric(), 
+                               sentiment=numeric(),
+                               lexicon=character(),
+                               stringsAsFactors=FALSE) 
+
+## Schleife, die für jede News eine neue Reihe hinzufügt
+for(i in 1:nrow(bloomberg_clean)){ 
+  
+  bloomberg_clean_news <- bloomberg_clean[i,] 
+  bloomberg_date <- bloomberg_clean[i,]$date
+
+  bloomberg_clean_news <- bloomberg_clean_news %>%
+    unnest_tokens(word, Content) %>%
+    anti_join(stop_words) %>%
+    inner_join(get_sentiments("loughran")) %>%
+    filter(sentiment %in% c("positive", "negative")) %>%
+    group_by(date,sentiment) %>%
+    count(sentiment) %>%
+    spread(sentiment, n, fill = 0)
+  
+  #Code gibt Fehler aus, wenn es weder ein positives, noch ein negatives Wort gibt. Daher muss überprüft werden, ob der Dataframe aus 0 Rows besteht, und wenn ja, müssen die fehlenden Spalten "date", "positive" und "negative" erstellt werden
+  #Die erstellten Spalten dann anschließend mit dem Datum und jeweils 0 fürs Sentiment befüllen
+  if(nrow(bloomberg_clean_news) < 1) {
+    bloomberg_clean_news <- add_column(bloomberg_clean_news, positive = NA , negative = NA)
+     
+    #test_influencer[nrow(df) + 1,] = list(test_tweetdate, 0, 0) #Ich habe bei dieser Zeile nach einem Computerabsturz plöztlich Fehlermeldungen bekommen. Keine Ahnung wieso. Deswegen jetzt Workaround in den nächsten beiden Zeilen.
+    bloomberg_clean_news = as.data.frame(list(NA, 0, 0)) %>%
+     rename(date = NA., positive = X0, negative = X0.1) 
+    bloomberg_clean_news$date <- bloomberg_date 
+  } else {
+    bloomberg_clean_news <- addcol(bloomberg_clean_news, "positive") #Wenn es entweder nur positive/negative Wörter gibt, sind nur die Spalten definiert, die einen Wert enthalten. Deswegen muss man hier die leeren Spalten erstellen, damit man im nächsten Schritt die Berechnung "sentiment = positive - negative" durchführen kann
+    bloomberg_clean_news <- addcol(bloomberg_clean_news, "negative")
+  }
+  
+  bloomberg_clean_news <- bloomberg_clean_news %>% 
+    ungroup() %>%
+    mutate(sentiment = positive - negative) %>%
+    mutate(lexicon = "loughran") 
+  
+  bloomberg_sentis <- add_row(bloomberg_sentis, date = bloomberg_clean_news$date, positive = bloomberg_clean_news$positive, negative = bloomberg_clean_news$negative, sentiment = bloomberg_clean_news$sentiment, lexicon = bloomberg_clean_news$lexicon)
+}
+
+
+# Senti-Score bestimmen
+bloomberg_sentis$date <- as.factor(bloomberg_sentis$date)
+
+bloomberg_scores <- bloomberg_sentis %>%
+  mutate(type = ifelse(sentiment > 0, "POS", "NEG")) %>%
+  group_by(date) %>%
+  count(type) %>%
+  spread(type, n, fill = 0) %>%
+  mutate(senti_score = POS / (POS + NEG)) %>%
+  mutate(volume = POS + NEG) %>%
+  #complete(date, fill = list(volume = 0, senti_score = 0.5)) %>%
+  select(-NEG, -POS) %>%
+  mutate(senti_score2 = lag(senti_score)) %>%
+  mutate(senti_score3 = lag(senti_score, n = 2L)) %>%
+  mutate(senti_score2 = ifelse(is.na(senti_score2), 0.5, senti_score2)) %>%
+  mutate(senti_score3 = ifelse(is.na(senti_score3), 0.5, senti_score3))
+  
