@@ -72,6 +72,7 @@ for(i in 1:nrow(bloomberg_clean)){
   bloomberg_sentis <- add_row(bloomberg_sentis, date = bloomberg_clean_news$date, positive = bloomberg_clean_news$positive, negative = bloomberg_clean_news$negative, sentiment = bloomberg_clean_news$sentiment, lexicon = bloomberg_clean_news$lexicon)
 }
 
+bloomberg_sentis$date <- as.Date(bloomberg_sentis$date)
 
 # Senti-Score bestimmen
 bloomberg_sentis$date <- as.factor(bloomberg_sentis$date)
@@ -83,10 +84,21 @@ bloomberg_scores <- bloomberg_sentis %>%
   spread(type, n, fill = 0) %>%
   mutate(senti_score = POS / (POS + NEG)) %>%
   mutate(volume = POS + NEG) %>%
-  #complete(date, fill = list(volume = 0, senti_score = 0.5)) %>%
-  select(-NEG, -POS) %>%
-  mutate(senti_score2 = lag(senti_score)) %>%
-  mutate(senti_score3 = lag(senti_score, n = 2L)) %>%
-  mutate(senti_score2 = ifelse(is.na(senti_score2), 0.5, senti_score2)) %>%
-  mutate(senti_score3 = ifelse(is.na(senti_score3), 0.5, senti_score3))
+  select(-NEG, -POS)
   
+# Fehlende Datums hinzufügen
+bloomberg_scores$date <- as.Date(bloomberg_scores$date)
+start_date <- min(bloomberg_scores$date)
+end_date <- max(bloomberg_scores$date)
+
+dates_full <- seq(ymd(start_date), ymd(end_date), by="day") %>%
+  as.data.frame() %>% 
+  rename(date = '.')
+
+bloomberg_scores_full <- full_join(bloomberg_scores, dates_full) %>%
+  complete(date, fill = list(volume = 0, senti_score = 0.5))
+# _
+
+#Sentis fürs ML
+sentis_ml <- bloomberg_scores_full %>% filter(date >= "2018-06-01" & date <= "2018-07-15") %>%
+  write.csv(file = "sentis_ml.csv", row.names = FALSE)
