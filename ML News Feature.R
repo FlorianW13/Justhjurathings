@@ -14,11 +14,11 @@ addcol <- function(input, colname) {
 
 # Connection zur Datenbank aufbauen
 con <- dbConnect(RMySQL::MySQL(), 
-                 dbname = "web154_db19", 
-                 host = 's92.goserver.host', 
-                 port = 3306,
-                 user = "web154_19",
-                 password = "PJS2018!")
+                 dbname = "", 
+                 host = '', 
+                 port = ,
+                 user = "",
+                 password = "")
 
 # News von Datenbank laden
 bloomberg_raw <- dbReadTable(con, "Bloomberg_News") 
