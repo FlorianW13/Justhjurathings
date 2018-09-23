@@ -14,11 +14,11 @@ addcol <- function(input, colname) {
 
 # Connection zur Datenbank aufbauen
 con <- dbConnect(RMySQL::MySQL(), 
-                 dbname = "web154_db19", 
-                 host = 's92.goserver.host', 
-                 port = 3306,
-                 user = "web154_19",
-                 password = "PJS2018!")
+                 .
+                 .
+                 .
+                 .
+                 .
 
 # News von Datenbank laden
 bloomberg_raw <- dbReadTable(con, "Bloomberg_News") 
@@ -136,12 +136,3 @@ remove(dates_full)
   #filter(date >= "2018-07-01" & date <= "2018-08-15") #%>%
  # write.csv(file = "sentis_ml.csv", row.names = FALSE)
 
-
-#Unnötige Daten löschen für die Übersicht
-#remove(bloomberg_news)
-#remove(bloomberg_raw)
-#remove(bloomberg_scores)
-#remove(bloomberg_sentis)
-#remove(con)
-#rm(list = ls.str(mode = 'character'))
-#rm(list = ls.str(mode = 'numeric'))
